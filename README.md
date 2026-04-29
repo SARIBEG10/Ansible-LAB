@@ -8,24 +8,24 @@ Ansible LAB
 LAB SETUP STEPS:
 
 ON client and server hosts:
-1- hostnamectl set-hostname ansible-server
-2- hostnamectl set-hostname ansible-client1/host_1
-3- hostnamectl set-hostname ansible-client2/host_2
-4- source /etc/.bash_completion.d/
+- hostnamectl set-hostname ansible-server
+- hostnamectl set-hostname ansible-client1/host_1
+- hostnamectl set-hostname ansible-client2/host_2
+- source /etc/.bash_completion.d/
 
 
 ON Ansible server :
-1- ssh-keygen -t rsa
-2- ssh-copy-id [client-ip]
-3- /etc/hosts
+- ssh-keygen -t rsa
+- ssh-copy-id [client-ip]
+- /etc/hosts
 	[host_1 ip add]  host_1
 	[host_2 ip add]  host_2
 
 
 THIS LAB CONTAINS 3 PRODUCTION READY TOOLS SETUP BY EXAMPLE:
-1- Apache tomcat
-2- IIS on windows Server
-3- Nginx + HAproxy
+- Apache tomcat
+- IIS on windows Server
+- Nginx + HAproxy
 
 NOTE: YOU CAN RUN ALL PLAYBOOKS IN REPO: https://github.com/SARIBEG10/SariBeg-Ansible ON THIS LAB 
   
