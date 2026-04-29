@@ -1,0 +1,240 @@
+# first project
+- name: ----- install java -----
+  apt:
+    name: java-1.8.0-oprnjdk-devel
+    state: present
+  tags: prj1
+
+- name: ------- download apache tomcat -------
+  get_url:
+    url: https://ftp.wayne.edu/apache/tomcat/tomcat-9/v9.0.41/bin/apache-tomcat-9.0.41.tar.gz
+    dest: /opt
+    validate_certs: no
+    timeout: 30
+  tags: prj1
+
+- name: ------- extract tar file -------
+  unarchive:
+    src: /opt/apache-tomcat-9.0.41.tar.gz
+    dest: /opt
+    remote_src: yes
+  tags: prj1
+
+# - name: ------- create soft link /opt/tomcat -------
+#   shell: ln -s /opt /opt/tomcat
+#   tags: prj1
+
+- name: ------- create soft link /opt/tomcat -------
+  file:
+    src: /opt/apache-tomcat-9.0.41
+    dest: /opt/tomcat
+    state: link
+  tags: prj1
+
+
+
+- name: ------- service create file -------
+  template:
+    src: tomcat.service.j2
+    dest: /etc/systemd/system/tomcat.service
+    backup: yes
+  tags: prj1
+
+- name: ------- Daemon Reload -------
+  systemd:
+    daemon_reload: yes
+  tags: prj1
+
+
+- name: ------- configure tomcat to listen port 80 -------
+  template:
+    src: server.xml.j2
+    dest: /opt/tomcat/conf/server.xml
+    backup: yes
+  tags: prj1
+
+- name: ------- deploy war file -------
+  copy:
+    src: hello-world.war
+    dest: /opt/tomcat/webapps/hello-world.war
+    force: yes
+  tags: prj1
+
+- name: ------- open firewall 80 port -------
+  iptables:
+    chain: INPUT
+    jump: ACCEPT
+    destination_port: 80
+    protocol: TCP
+    action: APPEND
+    state: present
+  tags: prj1
+
+
+- name: ------- start apache service -------
+  service:
+    name: tomcat
+    state: started
+    enabled: yes
+  tags: prj1
+
+
+
+
+################################################################# New Exercise #######################################################
+- name: ------- install  nginx -------
+  yum:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - nginx
+    - epel-release
+  tags: install_nginx
+
+- name: ------- configure /etc/hosts -------
+  lineinfile:
+    path: /etc/hosts
+    insertafter: EOF
+    line: "{{groups['loadbalancer']}} loadbalancer"
+    state: present
+  when: server_role == 'nginx'
+  tags: edit_hosts
+
+# - name: ------- customized index.html -------
+#   template:
+#     src: index.html.j2
+#     dest: /usr/share/nginx/html/index.html
+#     backup: yes
+#   notify:
+#     - restart nginx
+#   tags: index_html
+- name: ------- customize index.html -------
+  copy:
+    content: "<h1>Hello From {{ ansible_hostname }}</h1>"
+    dest: /usr/share/nginx/html/index.html
+    force: yes
+    backup: yes
+  tags: [update_index]
+
+
+
+- name: ------- test nginx -------
+  shell: "curl -v http://{{groups['myservers']}}"
+  register: nginx_out
+  tags: test_nginx
+
+- name: ------- show nginx out ------
+  debug:
+    msg: "{{nginx_out}}"
+  tags: test_nginx
+
+
+- name: ------- install haproxy -------
+  yum:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - haproxy
+    - rsyslogd
+  tags: install_haproxy_rsyslog
+
+- name: ------- configure haproxy -------
+  template:
+    src: haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+  tags: [config_haproxy]
+
+- name: ------- configure hosts -------
+  lineinfile:
+    insertafter: EOF
+    line: '{{ item[0] }} {{ item[1] }}'
+  with_nested:
+    - "{{ groups['myservers'] }}"
+    - ['nginx1.loadbalancer.me nginx1', 'nginx2.loadbalancer.me nginx2']
+  when: server_role == 'haproxy'
+  tags: [config_hosts]
+
+
+- name: ------- configure rsyslog for haproxy -------
+  template:
+    src: rsyslog.conf.j2
+    dest: /etc/rsyslog.conf
+  tags: [config_rsyslog]
+
+- name: ------- configurre HAproxy for rsyslog -------
+  template: 
+    src: haproxy_rsyslog.conf.j2
+    dest: /etc/rsyslog.d/haproxy.conf
+  notify:
+    - restart haproxy_rsyslog
+  tags: [config_haproxy_rsyslog]
+
+
+
+
+####################################################### New Exercise ######################################################
+
+# you can generate ConfigurationFile.ini file from GUI installation of MSSQL
+- name: ------- install MSSQL on windows -------
+  win_shell: c:\sql\swtup.exe /ConfigurationFile=ConfigurationFile.ini
+  tags: [install_mssql]
+
+
+
+####################################################### New Exercise ########################################################
+- name: ------- Install IIS on windows -------
+  win_feature:
+    name: Web-Server
+    state: present
+    include_sub_features: yes
+  register: web_server
+  tags: [install_iis]
+
+- name: ------- Reboot if needed -------
+  win_reboot:
+  when: web_server.reboot_required
+  tags: [reboot_iis]
+
+- name: ------- copy default index file to iis root ------- 
+  win_copy:
+    src: index.html
+    dest: "C:\\inetpub\\wwwroot\\index.html"
+  tags: [default_web]
+
+- name: ------- Create new website -------
+  win_file:
+    path: "C:\\inetpub\\wwwroot\\anisaweb"
+    state: directory
+  tags: [anisa_website]
+
+- name: ------- copy my contet to anisa website -------
+  win_copy:
+    src: index.html
+    dest: "C:\\inetpub\\wwwroot\\anisaweb\\index.html"
+  tags: [default_web]
+
+- name: ------- Create New Website -------
+  win_iis_website:
+    name: "Ansible Test Website"
+    state: started
+    port: 8080
+    physical_path: "C:\\inetpub\\wwwroot\\anisaweb"
+  tags: [new_website]
+
+
+- name: ------- open port 8080 on windows Firewall -------
+  win_firewall_rule:
+    name: iis_new_website
+    protocol: TCP
+    direction: In
+    localport: 8080
+    action: Allow
+    state: present
+    force: yes
+    enable: yes
+  tags: [firewall]
+
+
+
+
+
